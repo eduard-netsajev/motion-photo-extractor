@@ -2,6 +2,7 @@
 #include <cxxopts.hpp>
 #include <string>
 #include <cstdlib>
+#include <fstream>
 
 using namespace std;
 
@@ -30,11 +31,11 @@ Task parse_options(int argc, char* argv[]) {
         exit(EXIT_SUCCESS);
     }
     if (!options.count("input")) {
-        cout << "No input file specified, use -h to see an example of a valid usage.\n";
+        cerr << "No input file specified, use -h to see an example of a valid usage.\n";
         exit(EXIT_FAILURE);
     }
     if (!options.count("video") && !options.count("photo")) {
-        cout << "Not a single output file specified (no photo or video output argument), use -h to see an example of a valid usage.\n";
+        cerr << "Not a single output file specified (no photo or video output argument), use -h to see an example of a valid usage.\n";
         exit(EXIT_FAILURE);
     }
 
@@ -44,13 +45,47 @@ Task parse_options(int argc, char* argv[]) {
     if (options.count("video")) task.out_video = options["video"].as<string>();
     if (options.count("photo")) task.out_photo = options["photo"].as<string>();
     
-    return Task{};
+    return task;
+}
+
+vector<char>* read_file(const string& file_name) {
+    ifstream ifs {file_name, ios::in | ios::binary | ios::ate};
+    if(!ifs) {
+        cerr << "Failed to open input file '" << file_name << "'\n";
+        exit(EXIT_FAILURE);
+    }
+    ifs.exceptions (ifstream::failbit | ifstream::badbit);
+
+    ifstream::pos_type file_size = ifs.tellg();
+    auto bytes = make_unique<vector<char>>(file_size);
+    
+    ifs.seekg(0, ios::beg);
+    ifs.read(bytes->data(), file_size);
+
+    if(ifs.eof() || ifs.peek() != EOF) {
+        cerr << "Error reading input file (unexpected file size)\n";
+        exit(EXIT_FAILURE);
+    }
+
+    return bytes.release();
+}
+
+void create_file(const string& file_name, vector<char>& bytes, int begin, int end) {
+    ofstream ofs{file_name, ios::binary | ios::trunc};
+    ofs.write(&bytes[begin], end-begin);
 }
 
 int main(int argc, char* argv[]) try {
     Task task = parse_options(argc, argv);
-} catch (cxxopts::OptionException e) {
+    vector<char>* bytes = read_file(task.input_file);
+
+    create_file(task.out_video, *bytes, 0, bytes->size());
+    
+    delete bytes;
+} catch (const cxxopts::OptionException& e) {
     cerr << e.what() << ". Use --help for a list of valid options.\n";
+} catch (const ifstream::failure& e) {
+    cerr << "Exception opening/reading/closing file: " << e.what() << '\n';
 } catch (...) {
-    cerr << "Unexpected error" << endl;
+    cerr << "Unexpected error\n";
 }
