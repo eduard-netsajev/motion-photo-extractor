@@ -3,8 +3,12 @@
 #include <string>
 #include <cstdlib>
 #include <fstream>
+#include <algorithm>
+#include <functional>
 
 using namespace std;
+
+const string MARKER = "MotionPhoto_Data";
 
 struct Task {
     string input_file;
@@ -48,7 +52,7 @@ Task parse_options(int argc, char* argv[]) {
     return task;
 }
 
-vector<char>* read_file(const string& file_name) {
+vector<char> read_file(const string& file_name) {
     ifstream ifs {file_name, ios::in | ios::binary | ios::ate};
     if(!ifs) {
         cerr << "Failed to open input file '" << file_name << "'\n";
@@ -57,31 +61,39 @@ vector<char>* read_file(const string& file_name) {
     ifs.exceptions (ifstream::failbit | ifstream::badbit);
 
     ifstream::pos_type file_size = ifs.tellg();
-    auto bytes = make_unique<vector<char>>(file_size);
+    vector<char> bytes (file_size);
     
     ifs.seekg(0, ios::beg);
-    ifs.read(bytes->data(), file_size);
+    ifs.read(bytes.data(), file_size);
 
     if(ifs.eof() || ifs.peek() != EOF) {
         cerr << "Error reading input file (unexpected file size)\n";
         exit(EXIT_FAILURE);
     }
 
-    return bytes.release();
+    return bytes;
 }
 
-void create_file(const string& file_name, vector<char>& bytes, int begin, int end) {
+void create_file(const string& file_name, char* begin, int size) {
     ofstream ofs{file_name, ios::binary | ios::trunc};
-    ofs.write(&bytes[begin], end-begin);
+    if (!ofs) {
+        cerr << "Failed to open file to write '" << file_name << "'\n";
+        exit(EXIT_FAILURE);
+    }
+    ofs.write(begin, size);
 }
 
 int main(int argc, char* argv[]) try {
     Task task = parse_options(argc, argv);
-    vector<char>* bytes = read_file(task.input_file);
+    vector<char> bytes = read_file(task.input_file);
+        
+    auto photo_end_it = std::search(bytes.begin(), bytes.end(), std::boyer_moore_searcher(MARKER.begin(), MARKER.end()));
 
-    create_file(task.out_video, *bytes, 0, bytes->size());
+    int photo_size = photo_end_it - bytes.begin();
+    int video_size = bytes.size() - photo_size - MARKER.size();
     
-    delete bytes;
+    if(!task.out_photo.empty()) create_file(task.out_photo, &*bytes.begin(), photo_size);
+    if(!task.out_video.empty()) create_file(task.out_video, &*(photo_end_it + MARKER.size()), video_size);
 } catch (const cxxopts::OptionException& e) {
     cerr << e.what() << ". Use --help for a list of valid options.\n";
 } catch (const ifstream::failure& e) {
