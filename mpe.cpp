@@ -8,8 +8,6 @@
 
 using namespace std;
 
-const string MARKER = "MotionPhoto_Data";
-
 struct Task {
     string input_file;
     string out_photo;
@@ -17,7 +15,7 @@ struct Task {
 };
 
 Task parse_options(int argc, char* argv[]) {
-    cxxopts::Options options_config("Motion Photo Extractor", "Simple tool to work with motion photos\n\n"
+    cxxopts::Options options_config("mpe", "Motion Photo Extractor - simple tool to work with motion photos\n\n"
                              "Example usage to extract both video and photo parts from the input file:\n"
                              "mpe -i motion_photo.jpg -v video.mp4 -p photo.jpg\n");
     
@@ -86,14 +84,15 @@ void create_file(const string& file_name, char* begin, int size) {
 int main(int argc, char* argv[]) try {
     Task task = parse_options(argc, argv);
     vector<char> bytes = read_file(task.input_file);
-        
-    auto photo_end_it = std::search(bytes.begin(), bytes.end(), std::boyer_moore_searcher(MARKER.begin(), MARKER.end()));
+
+    string marker = "MotionPhoto_Data";
+    auto photo_end_it = search(bytes.begin(), bytes.end(), boyer_moore_searcher(marker.begin(), marker.end()));
 
     int photo_size = photo_end_it - bytes.begin();
-    int video_size = bytes.size() - photo_size - MARKER.size();
+    int video_size = bytes.size() - photo_size - marker.size();
     
     if(!task.out_photo.empty()) create_file(task.out_photo, &*bytes.begin(), photo_size);
-    if(!task.out_video.empty()) create_file(task.out_video, &*(photo_end_it + MARKER.size()), video_size);
+    if(!task.out_video.empty()) create_file(task.out_video, &*(photo_end_it + marker.size()), video_size);
 } catch (const cxxopts::OptionException& e) {
     cerr << e.what() << ". Use --help for a list of valid options.\n";
 } catch (const ifstream::failure& e) {
