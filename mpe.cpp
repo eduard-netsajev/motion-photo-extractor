@@ -73,6 +73,10 @@ vector<char> read_file(const string& file_name) {
 }
 
 void create_file(const string& file_name, char* begin, int size) {
+    if (size <= 0) {
+        cerr << "No data to create '" << file_name << "'\n";
+        exit(EXIT_FAILURE);
+    }
     ofstream ofs{file_name, ios::binary | ios::trunc};
     if (!ofs) {
         cerr << "Failed to open file to write '" << file_name << "'\n";
@@ -89,7 +93,7 @@ int main(int argc, char* argv[]) try {
     auto photo_end_it = search(bytes.begin(), bytes.end(), boyer_moore_searcher(marker.begin(), marker.end()));
 
     int photo_size = photo_end_it - bytes.begin();
-    int video_size = bytes.size() - photo_size - marker.size();
+    int video_size = bytes.size() - photo_size - marker.size(); // negative if photo_size == bytes.size i.e. the marker was not found
     
     if(!task.out_photo.empty()) create_file(task.out_photo, &*bytes.begin(), photo_size);
     if(!task.out_video.empty()) create_file(task.out_video, &*(photo_end_it + marker.size()), video_size);
